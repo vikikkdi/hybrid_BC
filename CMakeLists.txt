@@ -6,11 +6,14 @@ set (CMAKE_CXX_STANDARD 17)
 
 find_package(Boost 1.58 REQUIRED COMPONENTS program_options)
 
+add_subdirectory(library/yaml-cpp)
+
 add_library(hybrid_BC INTERFACE)
 target_include_directories(
   hybrid_BC
   INTERFACE 
   include/hybrid_BC
+  library/yaml-cpp/include
 )
 
 file(GLOB SOURCES "include/hybrid_BC/*")
@@ -26,4 +29,5 @@ target_link_libraries(
   bc
   hybrid_BC
   ${Boost_LIBRARIES}
+  yaml-cpp
 )
