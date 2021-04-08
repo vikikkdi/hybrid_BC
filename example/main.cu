@@ -7,6 +7,8 @@
 #include "util.cuh"
 #include "kernels.cuh"
 
+#include <yaml-cpp/yaml.h>
+
 int main(int argc, char *argv[])
 {
 	program_options op = parse_arguments(argc,argv);
