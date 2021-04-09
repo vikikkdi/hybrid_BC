@@ -3,7 +3,7 @@
 #define DIAMETER_SAMPLES 512
 
 //For portability reasons, we will not use CUDA 6 features here.
-std::vector<float> bc_gpu(graph g, int max_threads_per_block, int number_of_SMs, program_options op, const std::set<int> &source_vertices)
+std::vector<float> bc_gpu(graph g, int max_threads_per_block, int number_of_SMs, bool approx, int k, const std::set<int> &source_vertices)
 {
 	//Host result data
 	float *bc_gpu = new float[g.n];
@@ -46,7 +46,7 @@ std::vector<float> bc_gpu(graph g, int max_threads_per_block, int number_of_SMs,
 	checkCudaErrors(cudaMalloc((void**)&next_source_d,sizeof(int)));
 
 	thrust::device_vector<int> source_vertices_d(source_vertices.size());
-	if(op.approx)
+	if(approx)
 	{
 		thrust::copy(source_vertices.begin(),source_vertices.end(),source_vertices_d.begin());
 	}
@@ -63,10 +63,10 @@ std::vector<float> bc_gpu(graph g, int max_threads_per_block, int number_of_SMs,
 	checkCudaErrors(cudaMemcpy(next_source_d,next_source,sizeof(int),cudaMemcpyHostToDevice));
 
 	//Launch kernel
-	if(op.approx)
+	if(approx)
 	{
 
-		bc_gpu_opt<<<dimGrid,dimBlock>>>(bc_d,R_d,C_d,F_d,g.n,g.m,d_d,sigma_d,delta_d,Q_d,Q2_d,S_d,endpoints_d,next_source_d,pitch_d,pitch_sigma,pitch_delta,pitch_Q,pitch_Q2,pitch_S,pitch_endpoints,0,op.k,jia_d,diameters_d,thrust::raw_pointer_cast(source_vertices_d.data()),true);
+		bc_gpu_opt<<<dimGrid,dimBlock>>>(bc_d,R_d,C_d,F_d,g.n,g.m,d_d,sigma_d,delta_d,Q_d,Q2_d,S_d,endpoints_d,next_source_d,pitch_d,pitch_sigma,pitch_delta,pitch_Q,pitch_Q2,pitch_S,pitch_endpoints,0,k,jia_d,diameters_d,thrust::raw_pointer_cast(source_vertices_d.data()),true);
 		checkCudaErrors(cudaPeekAtLastError());
 	}
 	else

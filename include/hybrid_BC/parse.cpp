@@ -14,7 +14,7 @@ bool is_number(const std::string& s)
 		    return !s.empty() && it == s.end();
 }
 
-graph parse(char *file)
+graph parse(std::string file)
 {
 	std::string s(file);
 
@@ -37,7 +37,7 @@ graph parse(char *file)
 	}
 }
 
-graph parse_metis(char *file)
+graph parse_metis(std::string file)
 {
         graph g;
 
@@ -127,7 +127,88 @@ graph parse_metis(char *file)
 
 }*/
 
-graph parse_edgelist(char *file)
+graph parse_edgelist(std::vector<std::pair<int, int> > edges_ip){
+	graph g;
+	std::set<std::string> vertices;
+
+	//Scan the file
+
+	std::vector<std::string> from;
+	std::vector<std::string> to;
+	
+	for(int i=0; i<edges_ip.size(); i++){
+		std::string node1 = std::to_string(edges_ip[i].first);
+		std::string node2 = std::to_string(edges_ip[i].second);
+		vertices.insert(node1);
+		vertices.insert(node2);
+		from.push_back(node1);
+		to.push_back(node2);
+	}
+
+	g.n = vertices.size();
+	g.m = from.size();
+
+	unsigned id = 0;
+	for(std::set<std::string>::iterator i = vertices.begin(), e = vertices.end(); i!=e; ++i)
+	{
+		g.IDs.insert(boost::bimap<unsigned,std::string>::value_type(id++,*i));
+	}
+
+	g.R = new int[g.n+1];
+	g.F = new int[2*g.m];
+	g.C = new int[2*g.m];
+
+	for(int i=0; i<g.m; i++)
+	{
+		boost::bimap<unsigned,std::string>::right_map::iterator itf = g.IDs.right.find(from[i]);
+		boost::bimap<unsigned,std::string>::right_map::iterator itc = g.IDs.right.find(to[i]);
+
+		if((itf == g.IDs.right.end()) || (itc == g.IDs.right.end()))
+		{
+			std::cerr << "Error parsing graph file." << std::endl;
+			exit(-1);
+		}
+		else
+		{
+			if(itf->second == itc->second)
+			{
+				std::cerr << "Error: self edge! " << itf->second << " -> " << itc->second << std::endl;
+				std::cerr << "Aborting. Graphs with self-edges aren't supported." << std::endl;
+				exit(-1);
+			}
+			g.F[2*i] = itf->second;
+			g.C[2*i] = itc->second;
+			//Treat undirected edges as two directed edges
+			g.F[(2*i)+1] = itc->second;
+			g.C[(2*i)+1] = itf->second;
+		}
+	}
+
+	//Sort edges by F
+	std::vector< std::pair<int,int> >edges;
+	for(int i=0; i<2*g.m; i++)
+	{
+		edges.push_back(std::make_pair(g.F[i],g.C[i]));
+	}
+	std::sort(edges.begin(),edges.end()); //By default, pair sorts with precedence to it's first member, which is precisely what we want.
+	g.R[0] = 0;
+	int last_node = 0;
+	for(int i=0; i<2*g.m; i++)
+	{
+		g.F[i] = edges[i].first;
+		g.C[i] = edges[i].second;
+		while(edges[i].first > last_node)
+		{
+			g.R[++last_node] = i;
+		}
+	}
+	g.R[g.n] = 2*g.m;
+	edges.clear();
+
+	return g;
+}
+
+graph parse_edgelist(std::string file)
 {
 	graph g;
 	std::set<std::string> vertices;
@@ -414,6 +495,7 @@ void graph::print_BC_scores(const std::vector<float> bc, char *outfile)
 		if(it != IDs.left.end())
 		{
 			os << it->second << " " << bc[i] << std::endl;
+			os << i << " " << bc[i] << std::endl;
 		}
 		else
 		{
@@ -421,4 +503,24 @@ void graph::print_BC_scores(const std::vector<float> bc, char *outfile)
 			os << i << " " << bc[i] << std::endl;
 		}
 	}
+}
+
+std::map<int, float> graph::get_BC_scores(const std::vector<float> bc)
+{
+	std::map<int, float> bc_scores;
+	
+	for(int i=0; i<n; i++)
+	{
+		boost::bimap<unsigned,std::string>::left_map::iterator it = IDs.left.find(i);
+		if(it != IDs.left.end())
+		{
+			bc_scores[std::stoi(it->second)] = bc[i];
+		}
+		else
+		{
+			//Just print the numeric id
+			bc_scores[i] = bc[i];
+		}
+	}
+	return bc_scores;
 }

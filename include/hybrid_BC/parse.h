@@ -17,6 +17,7 @@ public:
 
 	void print_adjacency_list();
 	void print_BC_scores(const std::vector<float> bc, char *outfile);
+	std::map<int, float> get_BC_scores(const std::vector<float> bc);
 	void print_CSR();
 	void print_R();
 	void print_high_degree_vertices();
@@ -31,7 +32,8 @@ public:
 	boost::bimap<unsigned,std::string> IDs; //Associate vertices with other data. In general the unsigned could be replaced with a struct of attributes. 
 };
 
-graph parse(char *file);
-graph parse_metis(char *file);
+graph parse(std::string file);
+graph parse_metis(std::string file);
 //graph parse_snap(char *file);
-graph parse_edgelist(char *file);
+graph parse_edgelist(std::string file);
+graph parse_edgelist(std::vector<std::pair<int, int> > edges);

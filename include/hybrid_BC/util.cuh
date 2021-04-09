@@ -30,7 +30,7 @@ class program_options
 public:
 	program_options() : infile(NULL), verify(false), printBCscores(false), scorefile(NULL), device(-1), approx(false), k(256) {}
 
-	char *infile;
+	std::string infile;
 	bool verify;
 	bool printBCscores;
 	char *scorefile;
@@ -38,14 +38,13 @@ public:
 	bool approx;
 	int k;
 };
-program_options parse_arguments(int argc, char *argv[]);
 
 //Timing routines
 void start_clock(cudaEvent_t &start, cudaEvent_t &end);
 float end_clock(cudaEvent_t &start, cudaEvent_t &end);
 
 //Device routines
-void choose_device(int &max_threads_per_block, int &number_of_SMs, program_options op);
+void choose_device(int &max_threads_per_block, int &number_of_SMs, int device);
 
 //Verification routines
 void verify(graph g, const std::vector<float> bc_cpu, const std::vector<float> bc_gpu);
