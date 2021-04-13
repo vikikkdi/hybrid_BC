@@ -43,22 +43,26 @@ namespace mapf_adapters{
 						if(j-1 >= 0 && processed_obstacles.find((i*y_dim)+(j-1)) == processed_obstacles.end()){
 							int left = (i*y_dim) + (j-1);
 							temp.push_back(left);
-							edges.push_back(std::make_pair(xy, left));
+							if(std::find(edges.begin(), edges.end(), std::make_pair(left, xy)) == edges.end())
+								edges.push_back(std::make_pair(xy, left));
 						}
 						if(j+1 < y_dim && processed_obstacles.find((i*y_dim)+(j+1)) == processed_obstacles.end()){
 							int right = (i*y_dim) + (j+1);
 							temp.push_back(right);	
-							edges.push_back(std::make_pair(xy, right));
+							if(std::find(edges.begin(), edges.end(), std::make_pair(right, xy)) == edges.end())
+								edges.push_back(std::make_pair(xy, right));
 						}
 						if(i-1 >= 0 && processed_obstacles.find(((i-1)*y_dim)+(j)) == processed_obstacles.end()){
 							int up = ((i-1)*y_dim) + j;
 							temp.push_back(up);
-							edges.push_back(std::make_pair(xy, up));
+							if(std::find(edges.begin(), edges.end(), std::make_pair(up, xy)) == edges.end())
+								edges.push_back(std::make_pair(xy, up));
 						}
 						if(i+1 < x_dim && processed_obstacles.find(((i+1)*y_dim)+(j)) == processed_obstacles.end()){
 							int down = ((i+1)*y_dim) + j;
 							temp.push_back(down);
-							edges.push_back(std::make_pair(xy, down));
+							if(std::find(edges.begin(), edges.end(), std::make_pair(down, xy)) == edges.end())
+								edges.push_back(std::make_pair(xy, down));
 						}
 						adjacency_list[xy] = temp;
 					}

@@ -17,7 +17,7 @@ public:
 
 	void print_adjacency_list();
 	void print_BC_scores(const std::vector<float> bc, char *outfile);
-	std::map<int, float> get_BC_scores(const std::vector<float> bc);
+	std::map<int, double> get_BC_scores(const std::vector<double> bc);
 	void print_CSR();
 	void print_R();
 	void print_high_degree_vertices();

@@ -2,15 +2,27 @@
 
 #define DIAMETER_SAMPLES 512
 
+__device__ static __inline__ double atomicAdd_double(double* address, double val)
+{
+  unsigned long long int* address_as_ull =
+  (unsigned long long int*)address;
+  unsigned long long int old = *address_as_ull, assumed;
+  do {
+          assumed = old;
+          old = atomicCAS(address_as_ull, assumed, __double_as_longlong(val + __longlong_as_double(assumed)));
+  } while (assumed != old);
+  return __longlong_as_double(old);
+}
+
 //For portability reasons, we will not use CUDA 6 features here.
-std::vector<float> bc_gpu(graph g, int max_threads_per_block, int number_of_SMs, bool approx, int k, const std::set<int> &source_vertices)
+std::vector<double> bc_gpu(graph g, int max_threads_per_block, int number_of_SMs, bool approx, int k, const std::set<int> &source_vertices)
 {
 	//Host result data
-	float *bc_gpu = new float[g.n];
+	double *bc_gpu = new double[g.n];
 	int *next_source = new int;
 
 	//Device pointers
-	float *bc_d, *delta_d;
+	double *bc_d, *delta_d;
 	int *d_d, *R_d, *C_d, *F_d, *Q_d, *Q2_d, *S_d, *endpoints_d, *next_source_d;
 	unsigned long long *sigma_d;
 	size_t pitch_d, pitch_sigma, pitch_delta, pitch_Q, pitch_Q2, pitch_S, pitch_endpoints;
@@ -30,14 +42,14 @@ std::vector<float> bc_gpu(graph g, int max_threads_per_block, int number_of_SMs,
 	next_source[0] = number_of_SMs; 
 
 	//Allocate and transfer data to the GPU
-	checkCudaErrors(cudaMalloc((void**)&bc_d,sizeof(float)*g.n));
+	checkCudaErrors(cudaMalloc((void**)&bc_d,sizeof(double)*g.n));
 	checkCudaErrors(cudaMalloc((void**)&R_d,sizeof(int)*(g.n+1)));
 	checkCudaErrors(cudaMalloc((void**)&C_d,sizeof(int)*(2*g.m)));
 	checkCudaErrors(cudaMalloc((void**)&F_d,sizeof(int)*(2*g.m)));
 
 	checkCudaErrors(cudaMallocPitch((void**)&d_d,&pitch_d,sizeof(int)*g.n,dimGrid.x));
 	checkCudaErrors(cudaMallocPitch((void**)&sigma_d,&pitch_sigma,sizeof(unsigned long long)*g.n,dimGrid.x));
-	checkCudaErrors(cudaMallocPitch((void**)&delta_d,&pitch_delta,sizeof(float)*g.n,dimGrid.x));
+	checkCudaErrors(cudaMallocPitch((void**)&delta_d,&pitch_delta,sizeof(double)*g.n,dimGrid.x));
 	checkCudaErrors(cudaMallocPitch((void**)&Q_d,&pitch_Q,sizeof(int)*g.n,dimGrid.x)); //Making Queues/Stack of size O(n) since we won't duplicate
 	checkCudaErrors(cudaMallocPitch((void**)&Q2_d,&pitch_Q2,sizeof(int)*g.n,dimGrid.x));
 	checkCudaErrors(cudaMallocPitch((void**)&S_d,&pitch_S,sizeof(int)*g.n,dimGrid.x));
@@ -59,7 +71,7 @@ std::vector<float> bc_gpu(graph g, int max_threads_per_block, int number_of_SMs,
 	checkCudaErrors(cudaMemcpy(R_d,g.R,sizeof(int)*(g.n+1),cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(C_d,g.C,sizeof(int)*(2*g.m),cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(F_d,g.F,sizeof(int)*(2*g.m),cudaMemcpyHostToDevice));
-	checkCudaErrors(cudaMemset(bc_d,0,sizeof(float)*g.n));
+	checkCudaErrors(cudaMemset(bc_d,0,sizeof(double)*g.n));
 	checkCudaErrors(cudaMemcpy(next_source_d,next_source,sizeof(int),cudaMemcpyHostToDevice));
 
 	//Launch kernel
@@ -76,7 +88,7 @@ std::vector<float> bc_gpu(graph g, int max_threads_per_block, int number_of_SMs,
 	}
 
 	//Transfer result to CPU
-	checkCudaErrors(cudaMemcpy(bc_gpu,bc_d,sizeof(float)*g.n,cudaMemcpyDeviceToHost));
+	checkCudaErrors(cudaMemcpy(bc_gpu,bc_d,sizeof(double)*g.n,cudaMemcpyDeviceToHost));
 
 	//Free memory
 	checkCudaErrors(cudaFree(bc_d));
@@ -96,11 +108,36 @@ std::vector<float> bc_gpu(graph g, int max_threads_per_block, int number_of_SMs,
 	checkCudaErrors(cudaFree(diameters_d));
 
 	//Copy host result to a vector
-	std::vector<float> bc_gpu_v(bc_gpu,bc_gpu+g.n);
+	std::vector<double> bc_gpu_v(bc_gpu,bc_gpu+g.n);
+
+	double maxi_val = 0;
+	double mini_val = 0;
 
 	for(int i=0; i<g.n; i++)
 	{
 		bc_gpu_v[i] /= 2.0f; //Again we don't want to double count the unweighted edges
+		
+		double val_m = g.n*(g.n-1)/2.0f;
+		bc_gpu_v[i] /= val_m;
+	}
+	for(int i=0; i<g.n; i++){
+		if(i == 0){
+			maxi_val = bc_gpu_v[i];
+			mini_val = bc_gpu_v[i];
+		} else {
+			if(bc_gpu_v[i] > maxi_val){
+				maxi_val = bc_gpu_v[i];
+			}
+			if(bc_gpu_v[i] < mini_val){
+				mini_val = bc_gpu_v[i];
+			}
+		}
+	}
+
+	for(int i=0; i<g.n; i++)
+	{
+		bc_gpu_v[i] -= mini_val;
+		bc_gpu_v[i] /= (maxi_val - mini_val);
 	}
 
 	delete[] bc_gpu;
@@ -147,14 +184,14 @@ __device__ void bitonic_sort(int *values, int N)
 	}
 }
 
-__global__ void bc_gpu_opt(float *bc, const int *R, const int *C, const int *F, const int n, const int m, int *d, unsigned long long *sigma, float *delta, int *Q, int *Q2, int *S, int *endpoints, int *next_source, size_t pitch_d, size_t pitch_sigma, size_t pitch_delta, size_t pitch_Q, size_t pitch_Q2, size_t pitch_S, size_t pitch_endpoints, int start, int end, int *jia, int *diameters, int *source_vertices, bool approx)
+__global__ void bc_gpu_opt(double *bc, const int *R, const int *C, const int *F, const int n, const int m, int *d, unsigned long long *sigma, double *delta, int *Q, int *Q2, int *S, int *endpoints, int *next_source, size_t pitch_d, size_t pitch_sigma, size_t pitch_delta, size_t pitch_Q, size_t pitch_Q2, size_t pitch_S, size_t pitch_endpoints, int start, int end, int *jia, int *diameters, int *source_vertices, bool approx)
 {
 	__shared__ int ind;
 	__shared__ int i;
 	int j = threadIdx.x;
 	int *d_row = (int*)((char*)d + blockIdx.x*pitch_d);
 	unsigned long long *sigma_row = (unsigned long long*)((char*)sigma + blockIdx.x*pitch_sigma);
-	float *delta_row = (float*)((char*)delta + blockIdx.x*pitch_delta);
+	double *delta_row = (double*)((char*)delta + blockIdx.x*pitch_delta);
 	__shared__ int *Q_row;
 	__shared__ int *Q2_row;
 	__shared__ int *S_row;
@@ -378,8 +415,8 @@ __global__ void bc_gpu_opt(float *bc, const int *R, const int *C, const int *F, 
 						int v = C[kk];
 						if(d_row[v] == (d_row[w]+1))
 						{
-							float change = (sigma_row[w]/(float)sigma_row[v])*(1.0f+delta_row[v]);
-							atomicAdd(&delta_row[w],change);
+							double change = (sigma_row[w]/(double)sigma_row[v])*(1.0f+delta_row[v]);
+							atomicAdd_double(&delta_row[w],change);
 						}		
 					}
 				}
@@ -389,14 +426,14 @@ __global__ void bc_gpu_opt(float *bc, const int *R, const int *C, const int *F, 
 				for(int kk=threadIdx.x+endpoints_row[current_depth]; kk<endpoints_row[current_depth+1]; kk+=blockDim.x)
 				{
 					int w = S_row[kk];
-					float dsw = 0;
-					float sw = (float)sigma_row[w];
+					double dsw = 0;
+					double sw = (double)sigma_row[w];
 					for(int z=R[w]; z<R[w+1]; z++)
 					{
 						int v = C[z];
 						if(d_row[v] == (d_row[w]+1))
 						{
-							dsw += (sw/(float)sigma_row[v])*(1.0f+delta_row[v]);
+							dsw += (sw/(double)sigma_row[v])*(1.0f+delta_row[v]);
 						}
 					}
 					delta_row[w] = dsw;	
@@ -412,7 +449,7 @@ __global__ void bc_gpu_opt(float *bc, const int *R, const int *C, const int *F, 
 
 		for(int kk=threadIdx.x; kk<n; kk+=blockDim.x)
 		{
-			atomicAdd(&bc[kk],delta_row[kk]); //Would need to check that kk != i here, but delta_row[kk] is guaranteed to be 0.
+			atomicAdd_double(&bc[kk],delta_row[kk]); //Would need to check that kk != i here, but delta_row[kk] is guaranteed to be 0.
 		}
 		
 		if(j == 0)

@@ -9,7 +9,7 @@
 
 #include "main.cuh"
 
-std::map<int, float> compute_bc(std::vector<std::pair<int, int> > edges, int k, bool approx,	int device ){
+std::map<int, double> compute_bc(std::vector<std::pair<int, int> > edges, int k, bool approx,	int device ){
 	int max_threads_per_block, number_of_SMs;
 	choose_device(max_threads_per_block,number_of_SMs, device);
 	graph g = parse_edgelist(edges);
@@ -44,14 +44,14 @@ std::map<int, float> compute_bc(std::vector<std::pair<int, int> > edges, int k, 
 	}
 
 	float GPU_time;
-	std::vector<float> bc_g;
+	std::vector<double> bc_g;
 	start_clock(start,end);
 	bc_g = bc_gpu(g,max_threads_per_block,number_of_SMs,approx, k,source_vertices);
 	GPU_time = end_clock(start,end);
 
 	if(false)
 	{
-		verify(g,bc,bc_g);
+		//verify(g,bc,bc_g);
 	}
 	if(false)
 	{
@@ -65,7 +65,7 @@ std::map<int, float> compute_bc(std::vector<std::pair<int, int> > edges, int k, 
 	}
 	std::cout << "Time for GPU Algorithm: " << GPU_time << " s" << std::endl;
 
-	std::map<int, float> bc_scores = g.get_BC_scores(bc_g);
+	std::map<int, double> bc_scores = g.get_BC_scores(bc_g);
 	
 	delete[] g.R;
 	delete[] g.C;

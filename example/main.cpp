@@ -80,7 +80,7 @@ int main(int argc, char* argv[]) {
 
 
   
-  std::map<int, float> bc_scores = compute_bc(edges, k, approx, 0);
+  std::map<int, double> bc_scores = compute_bc(edges, k, approx, 0);
 
   std::cout<<bc_scores.size()<<std::endl;
   for(int i=0; i<mapf.get_x()*mapf.get_y(); i++){

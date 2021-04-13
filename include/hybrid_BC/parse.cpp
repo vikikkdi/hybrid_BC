@@ -505,9 +505,9 @@ void graph::print_BC_scores(const std::vector<float> bc, char *outfile)
 	}
 }
 
-std::map<int, float> graph::get_BC_scores(const std::vector<float> bc)
+std::map<int, double> graph::get_BC_scores(const std::vector<double> bc)
 {
-	std::map<int, float> bc_scores;
+	std::map<int, double> bc_scores;
 	
 	for(int i=0; i<n; i++)
 	{
